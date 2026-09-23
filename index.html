@@ -51,7 +51,7 @@
         <header class="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-30">
             <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
                 <div class="flex items-center gap-4">
-                    <img src="SC new-logo-horizontal.png" alt="Syria Care Logo" class="h-10 object-contain">
+                    <img src="https://syriacare.org.my/wp-content/uploads/2021/04/Logo-SC-01-e1617267026330.png" alt="Syria Care Logo" class="h-10 object-contain">
                     <div class="h-6 w-px bg-gray-300 mx-2 hidden sm:block"></div>
                     <h1 class="font-bold text-xl text-gray-900 tracking-tight hidden sm:block">Campaign Performance</h1>
                 </div>
@@ -197,12 +197,8 @@
         document.getElementById('current-year').textContent = new Date().getFullYear();
 
         // The original user URL is a pubhtml. We modify it to output=csv to fetch data directly.
-        const originalUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vR_U1wg8erdnTVuK6UO_ilkqKsr9GZI0UCdrpc34zof3NNGEX79CRsGMikGnLXf8OJskOuM8z5tABxW/pubhtml";
         const csvUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vR_U1wg8erdnTVuK6UO_ilkqKsr9GZI0UCdrpc34zof3NNGEX79CRsGMikGnLXf8OJskOuM8z5tABxW/pub?output=csv";
         
-        // Proxy AllOrigins digunakan untuk memintas ralat CORS Google Sheets
-        const proxyUrl = "https://api.allorigins.win/raw?url=" + encodeURIComponent(csvUrl);
-
         let globalData = [];
         let filteredData = [];
         
@@ -250,10 +246,11 @@
             return `${year}-${month}-${day}`;
         };
 
-        // Generate Mock Data just in case CORS blocks the Google Sheet request
+        // Fungsi Sandaran (Mock Data) sekiranya Google Sheets disekat (CORS/Proxy fail)
         const generateMockData = () => {
             const mock = [];
             const today = new Date();
+            // Data rawak untuk 30 hari sebagai sandaran visual
             for(let i=30; i>=0; i--) {
                 const d = new Date(today);
                 d.setDate(today.getDate() - i);
@@ -280,46 +277,35 @@
             return mock;
         };
 
-        async function initializeData() {
-            try {
-                // Gunakan fetch dengan proxy untuk melepasi halangan CORS
-                const response = await fetch(proxyUrl);
-                if (!response.ok) {
-                    throw new Error("Ralat rangkaian dari proxy.");
-                }
-                const csvText = await response.text();
-
-                // Parsing text CSV menggunakan PapaParse
-                Papa.parse(csvText, {
-                    header: true,
-                    skipEmptyLines: true,
-                    transformHeader: function(header) {
-                        return header.trim().toUpperCase(); // Selaraskan header (buang space berlebihan)
-                    },
-                    complete: function(results) {
-                        // Semak jika data sah dan column 'DATE' wujud
-                        if (results.data && results.data.length > 0 && results.data[0]["DATE"] !== undefined) {
-                            processRawData(results.data);
-                            document.getElementById('data-status').innerHTML = `<span class="text-green-600"><i class="fas fa-check-circle mr-1"></i> Data Dimuatkan Daripada Google Sheets</span>`;
-                        } else {
-                            throw new Error("Format CSV tidak sah atau sekuriti Google menghalang akses penuh.");
-                        }
-                    },
-                    error: function(err) {
-                        console.warn("Ralat PapaParse:", err);
+        function initializeData() {
+            // Gunakan PapaParse secara terus untuk memuat turun CSV tanpa proxy
+            Papa.parse(csvUrl, {
+                download: true,
+                header: true,
+                skipEmptyLines: true,
+                transformHeader: function(header) {
+                    return header.trim().toUpperCase(); // Selaraskan header
+                },
+                complete: function(results) {
+                    if (results.data && results.data.length > 0 && results.data[0]["DATE"] !== undefined) {
+                        processRawData(results.data);
+                        document.getElementById('data-status').innerHTML = `<span class="text-green-600"><i class="fas fa-check-circle mr-1"></i> Data Dimuatkan Daripada Google Sheets</span>`;
+                    } else {
+                        console.warn("Format CSV tidak sah atau sekuriti menghalang.");
                         useMockData();
                     }
-                });
-            } catch (error) {
-                console.warn("Gagal memuat turun data, menggunakan mock data:", error);
-                useMockData();
-            }
+                },
+                error: function(err) {
+                    console.warn("Ralat PapaParse:", err);
+                    useMockData();
+                }
+            });
         }
 
         function useMockData() {
             const mockData = generateMockData();
             processRawData(mockData);
-            document.getElementById('data-status').innerHTML = `<span class="text-amber-500"><i class="fas fa-exclamation-triangle mr-1"></i> Menggunakan Data Simulasi (Mock Data)</span><br><span class="text-xs text-gray-400">Google Sheets memotong akses terus pihak ketiga.</span>`;
+            document.getElementById('data-status').innerHTML = `<span class="text-amber-500 font-semibold"><i class="fas fa-exclamation-triangle mr-1"></i> Mod Data Simulasi</span><br><span class="text-xs text-gray-500">Google menyekat akses. Rujuk nota.</span>`;
         }
 
         function processRawData(data) {
@@ -554,12 +540,24 @@
             if(!startVal && !endVal) {
                 filteredData = [...globalData];
             } else {
-                let start = startVal ? new Date(startVal) : new Date('1970-01-01');
-                let end = endVal ? new Date(endVal) : new Date('2099-12-31');
+                let start, end;
                 
-                // Set hours to cover full day
-                start.setHours(0,0,0,0);
-                end.setHours(23,59,59,999);
+                // Mencegah ralat zon masa (timezone offset bug)
+                if (startVal) {
+                    const parts = startVal.split('-');
+                    start = new Date(parts[0], parseInt(parts[1]) - 1, parts[2]);
+                    start.setHours(0,0,0,0);
+                } else {
+                    start = new Date('1970-01-01');
+                }
+
+                if (endVal) {
+                    const parts = endVal.split('-');
+                    end = new Date(parts[0], parseInt(parts[1]) - 1, parts[2]);
+                    end.setHours(23,59,59,999);
+                } else {
+                    end = new Date('2099-12-31');
+                }
 
                 filteredData = globalData.filter(d => {
                     const rowDate = d.parsedDate;
@@ -567,6 +565,7 @@
                 });
             }
             
+            // updateDashboard akan melukis semula Carta, KPI dan Jadual
             updateDashboard();
         };
 
