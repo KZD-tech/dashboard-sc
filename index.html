@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Campaign Performance Dashboard</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <!-- PapaParse for CSV Parsing -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
+
+    <!-- Font Awesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6;
+        }
+        /* Custom scrollbar for table */
+        .table-container::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        .table-container::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 4px;
+        }
+        .table-container::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+        .table-container::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+    </style>
+</head>
+<body class="text-gray-800 antialiased">
+
+    <div class="min-h-screen flex flex-col">
+        
+        <!-- Navbar -->
+        <header class="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-30">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+                <div class="flex items-center gap-4">
+                    <img src="SC new-logo-horizontal.png" alt="Syria Care Logo" class="h-10 object-contain">
+                    <div class="h-6 w-px bg-gray-300 mx-2 hidden sm:block"></div>
+                    <h1 class="font-bold text-xl text-gray-900 tracking-tight hidden sm:block">Campaign Performance</h1>
+                </div>
+                <div class="text-sm text-gray-500 font-medium" id="data-status">
+                    <i class="fas fa-circle-notch fa-spin mr-1"></i> Memuatkan Data...
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full">
+            
+            <!-- Filters -->
+            <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100 mb-6 flex flex-col sm:flex-row items-center justify-between gap-4">
+                <div class="flex items-center gap-2 text-gray-700 font-medium">
+                    <i class="fas fa-filter text-indigo-500"></i>
+                    <span>Tapis Data</span>
+                </div>
+                <div class="flex flex-wrap items-center gap-3 w-full sm:w-auto">
+                    <div class="flex flex-col sm:flex-row items-center gap-2 w-full sm:w-auto">
+                        <label class="text-xs text-gray-500 uppercase font-semibold">Tarikh Mula</label>
+                        <input type="date" id="start-date" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:w-auto p-2">
+                    </div>
+                    <div class="flex flex-col sm:flex-row items-center gap-2 w-full sm:w-auto">
+                        <label class="text-xs text-gray-500 uppercase font-semibold">Tarikh Akhir</label>
+                        <input type="date" id="end-date" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:w-auto p-2">
+                    </div>
+                    <button id="reset-filter" class="w-full sm:w-auto bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium py-2 px-4 rounded-lg transition-colors text-sm">
+                        Reset
+                    </button>
+                </div>
+            </div>
+
+            <!-- KPI Cards -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                <!-- Ad Spent -->
+                <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-5 flex items-center justify-between hover:shadow-md transition-shadow">
+                    <div>
+                        <p class="text-sm font-medium text-gray-500 mb-1">Jumlah Ad Spent</p>
+                        <h3 class="text-2xl font-bold text-gray-900" id="kpi-adspent">RM 0.00</h3>
+                    </div>
+                    <div class="w-12 h-12 bg-red-50 rounded-full flex items-center justify-center text-red-500">
+                        <i class="fas fa-money-bill-wave text-xl"></i>
+                    </div>
+                </div>
+
+                <!-- Overall Revenue -->
+                <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-5 flex items-center justify-between hover:shadow-md transition-shadow">
+                    <div>
+                        <p class="text-sm font-medium text-gray-500 mb-1">Jumlah Keseluruhan (Overall)</p>
+                        <h3 class="text-2xl font-bold text-gray-900" id="kpi-overall">RM 0.00</h3>
+                    </div>
+                    <div class="w-12 h-12 bg-green-50 rounded-full flex items-center justify-center text-green-500">
+                        <i class="fas fa-wallet text-xl"></i>
+                    </div>
+                </div>
+
+                <!-- Net Profit -->
+                <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-5 flex items-center justify-between hover:shadow-md transition-shadow">
+                    <div>
+                        <p class="text-sm font-medium text-gray-500 mb-1">Jumlah Bersih (Net)</p>
+                        <h3 class="text-2xl font-bold text-gray-900" id="kpi-net">RM 0.00</h3>
+                    </div>
+                    <div class="w-12 h-12 bg-blue-50 rounded-full flex items-center justify-center text-blue-500">
+                        <i class="fas fa-coins text-xl"></i>
+                    </div>
+                </div>
+
+                <!-- Average ROAS -->
+                <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-5 flex items-center justify-between hover:shadow-md transition-shadow">
+                    <div>
+                        <p class="text-sm font-medium text-gray-500 mb-1">Purata ROAS</p>
+                        <h3 class="text-2xl font-bold text-gray-900" id="kpi-roas">0.00</h3>
+                    </div>
+                    <div class="w-12 h-12 bg-purple-50 rounded-full flex items-center justify-center text-purple-500">
+                        <i class="fas fa-bullseye text-xl"></i>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Charts Section -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+                <!-- Trend Chart (Spans 2 columns on large screens) -->
+                <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-100 lg:col-span-2">
+                    <h3 class="text-lg font-bold text-gray-800 mb-4">Trend Keseluruhan (Ad Spent vs Overall vs Net)</h3>
+                    <div class="relative h-72 w-full">
+                        <canvas id="trendChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- ROAS Chart -->
+                <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-100">
+                    <h3 class="text-lg font-bold text-gray-800 mb-4">Trend ROAS</h3>
+                    <div class="relative h-72 w-full">
+                        <canvas id="roasChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Breakdown Chart -->
+                <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-100 lg:col-span-3">
+                    <h3 class="text-lg font-bold text-gray-800 mb-4">Pecahan Sumber Pendapatan (ONPAY vs QR vs VA)</h3>
+                    <div class="relative h-64 w-full">
+                        <canvas id="breakdownChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Data Table -->
+            <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden mb-8">
+                <div class="p-5 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+                    <h3 class="text-lg font-bold text-gray-800">Perincian Data Harian</h3>
+                </div>
+                <div class="overflow-x-auto table-container">
+                    <table class="w-full text-sm text-left text-gray-500">
+                        <thead class="text-xs text-gray-700 uppercase bg-gray-50 border-b border-gray-200">
+                            <tr>
+                                <th scope="col" class="px-6 py-4 font-semibold">Tarikh</th>
+                                <th scope="col" class="px-6 py-4 font-semibold text-right">Ad Spent</th>
+                                <th scope="col" class="px-6 py-4 font-semibold text-right">Onpay</th>
+                                <th scope="col" class="px-6 py-4 font-semibold text-right">QR</th>
+                                <th scope="col" class="px-6 py-4 font-semibold text-right">VA</th>
+                                <th scope="col" class="px-6 py-4 font-semibold text-right bg-green-50/50">Overall</th>
+                                <th scope="col" class="px-6 py-4 font-semibold text-right bg-blue-50/50">Net</th>
+                                <th scope="col" class="px-6 py-4 font-semibold text-center bg-purple-50/50">ROAS</th>
+                            </tr>
+                        </thead>
+                        <tbody id="table-body" class="divide-y divide-gray-100">
+                            <!-- Rows will be injected by JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            
+            <!-- Footer -->
+            <footer class="text-center text-gray-500 text-sm pb-8">
+                &copy; <span id="current-year"></span> Campaign Dashboard. Direka untuk prestasi.
+            </footer>
+
+        </main>
+    </div>
+
+    <script>
+        document.getElementById('current-year').textContent = new Date().getFullYear();
+
+        // The original user URL is a pubhtml. We modify it to output=csv to fetch data directly.
+        const originalUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vR_U1wg8erdnTVuK6UO_ilkqKsr9GZI0UCdrpc34zof3NNGEX79CRsGMikGnLXf8OJskOuM8z5tABxW/pubhtml";
+        const csvUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vR_U1wg8erdnTVuK6UO_ilkqKsr9GZI0UCdrpc34zof3NNGEX79CRsGMikGnLXf8OJskOuM8z5tABxW/pub?output=csv";
+        
+        // Proxy AllOrigins digunakan untuk memintas ralat CORS Google Sheets
+        const proxyUrl = "https://api.allorigins.win/raw?url=" + encodeURIComponent(csvUrl);
+
+        let globalData = [];
+        let filteredData = [];
+        
+        // Chart instances
+        let trendChartInstance = null;
+        let roasChartInstance = null;
+        let breakdownChartInstance = null;
+
+        // Formatter utilities
+        const formatCurrency = (value) => {
+            return new Intl.NumberFormat('ms-MY', { style: 'currency', currency: 'MYR' }).format(value);
+        };
+        const formatNumber = (value) => {
+            return new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value);
+        };
+        
+        // Robust parser to handle strings like "RM 1,200.50" or "1000"
+        const parseValue = (val) => {
+            if (typeof val === 'number') return val;
+            if (!val) return 0;
+            // Remove everything except numbers, minus sign, and dot
+            const cleaned = val.toString().replace(/[^0-9.-]+/g, "");
+            const parsed = parseFloat(cleaned);
+            return isNaN(parsed) ? 0 : parsed;
+        };
+
+        // Date parser (handles MM/DD/YYYY or DD/MM/YYYY gracefully)
+        const parseDate = (dateStr) => {
+            if (!dateStr) return new Date();
+            let d = new Date(dateStr);
+            if(isNaN(d.getTime())) {
+                // Try format DD/MM/YYYY -> MM/DD/YYYY
+                const parts = dateStr.split(/[-/]/);
+                if(parts.length === 3) {
+                    d = new Date(`${parts[1]}/${parts[0]}/${parts[2]}`);
+                }
+            }
+            return d;
+        };
+
+        const formatDateToLocal = (dateObj) => {
+            const year = dateObj.getFullYear();
+            const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+            const day = String(dateObj.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        };
+
+        // Generate Mock Data just in case CORS blocks the Google Sheet request
+        const generateMockData = () => {
+            const mock = [];
+            const today = new Date();
+            for(let i=30; i>=0; i--) {
+                const d = new Date(today);
+                d.setDate(today.getDate() - i);
+                
+                const adSpent = Math.random() * 500 + 100;
+                const onpay = Math.random() * 800 + 200;
+                const qr = Math.random() * 300 + 50;
+                const va = Math.random() * 200 + 20;
+                const overall = onpay + qr + va;
+                const net = overall - adSpent;
+                const roas = overall / adSpent;
+
+                mock.push({
+                    "DATE": `${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}/${d.getFullYear()}`,
+                    "AD SPENT": adSpent.toFixed(2),
+                    "ONPAY": onpay.toFixed(2),
+                    "QR": qr.toFixed(2),
+                    "VA": va.toFixed(2),
+                    "OVERALL": overall.toFixed(2),
+                    "NET": net.toFixed(2),
+                    "ROAS": roas.toFixed(2)
+                });
+            }
+            return mock;
+        };
+
+        async function initializeData() {
+            try {
+                // Gunakan fetch dengan proxy untuk melepasi halangan CORS
+                const response = await fetch(proxyUrl);
+                if (!response.ok) {
+                    throw new Error("Ralat rangkaian dari proxy.");
+                }
+                const csvText = await response.text();
+
+                // Parsing text CSV menggunakan PapaParse
+                Papa.parse(csvText, {
+                    header: true,
+                    skipEmptyLines: true,
+                    transformHeader: function(header) {
+                        return header.trim().toUpperCase(); // Selaraskan header (buang space berlebihan)
+                    },
+                    complete: function(results) {
+                        // Semak jika data sah dan column 'DATE' wujud
+                        if (results.data && results.data.length > 0 && results.data[0]["DATE"] !== undefined) {
+                            processRawData(results.data);
+                            document.getElementById('data-status').innerHTML = `<span class="text-green-600"><i class="fas fa-check-circle mr-1"></i> Data Dimuatkan Daripada Google Sheets</span>`;
+                        } else {
+                            throw new Error("Format CSV tidak sah atau sekuriti Google menghalang akses penuh.");
+                        }
+                    },
+                    error: function(err) {
+                        console.warn("Ralat PapaParse:", err);
+                        useMockData();
+                    }
+                });
+            } catch (error) {
+                console.warn("Gagal memuat turun data, menggunakan mock data:", error);
+                useMockData();
+            }
+        }
+
+        function useMockData() {
+            const mockData = generateMockData();
+            processRawData(mockData);
+            document.getElementById('data-status').innerHTML = `<span class="text-amber-500"><i class="fas fa-exclamation-triangle mr-1"></i> Menggunakan Data Simulasi (Mock Data)</span><br><span class="text-xs text-gray-400">Google Sheets memotong akses terus pihak ketiga.</span>`;
+        }
+
+        function processRawData(data) {
+            globalData = data.map(row => {
+                const adSpent = parseValue(row["AD SPENT"]);
+                const onpay = parseValue(row["ONPAY"]);
+                const qr = parseValue(row["QR"]);
+                const va = parseValue(row["VA"]);
+                const overall = parseValue(row["OVERALL"]) || (onpay + qr + va);
+                const net = parseValue(row["NET"]) || (overall - adSpent);
+                let roas = parseValue(row["ROAS"]);
+                
+                // Calculate ROAS if it's 0 or undefined but we have data
+                if (roas === 0 && adSpent > 0) {
+                    roas = overall / adSpent;
+                }
+
+                const parsedDate = parseDate(row["DATE"]);
+
+                return {
+                    originalDateStr: row["DATE"],
+                    parsedDate: parsedDate,
+                    isoDate: formatDateToLocal(parsedDate), // YYYY-MM-DD format for input sorting
+                    adSpent, onpay, qr, va, overall, net, roas
+                };
+            });
+
+            // Sort data chronologically
+            globalData.sort((a, b) => a.parsedDate - b.parsedDate);
+            
+            // Set default date range filter
+            if(globalData.length > 0) {
+                const firstDate = globalData[0].isoDate;
+                const lastDate = globalData[globalData.length-1].isoDate;
+                document.getElementById('start-date').value = firstDate;
+                document.getElementById('end-date').value = lastDate;
+            }
+
+            filteredData = [...globalData];
+            updateDashboard();
+        }
+
+        
+        // Define common chart options
+        Chart.defaults.font.family = "'Inter', sans-serif";
+        Chart.defaults.color = '#6b7280';
+        Chart.defaults.scale.grid.color = '#f3f4f6';
+
+        function updateDashboard() {
+            updateKPIs();
+            updateTable();
+            renderCharts();
+        }
+
+        function updateKPIs() {
+            let totalAdSpent = 0, totalOverall = 0, totalNet = 0;
+            
+            filteredData.forEach(row => {
+                totalAdSpent += row.adSpent;
+                totalOverall += row.overall;
+                totalNet += row.net;
+            });
+
+            const avgRoas = totalAdSpent > 0 ? (totalOverall / totalAdSpent) : 0;
+
+            document.getElementById('kpi-adspent').textContent = formatCurrency(totalAdSpent);
+            document.getElementById('kpi-overall').textContent = formatCurrency(totalOverall);
+            document.getElementById('kpi-net').textContent = formatCurrency(totalNet);
+            document.getElementById('kpi-roas').textContent = formatNumber(avgRoas);
+            
+            // Add colors based on performance
+            const roasElement = document.getElementById('kpi-roas');
+            if(avgRoas >= 3) roasElement.className = "text-2xl font-bold text-green-600";
+            else if (avgRoas >= 2) roasElement.className = "text-2xl font-bold text-yellow-500";
+            else roasElement.className = "text-2xl font-bold text-red-500";
+        }
+
+        function renderCharts() {
+            const labels = filteredData.map(d => {
+                // Shorten date for chart labels e.g., 'Aug 12'
+                return d.parsedDate.toLocaleDateString('ms-MY', { month: 'short', day: 'numeric' });
+            });
+
+            // 1. Trend Chart (Ad Spent, Overall, Net)
+            const ctxTrend = document.getElementById('trendChart').getContext('2d');
+            if (trendChartInstance) trendChartInstance.destroy();
+            trendChartInstance = new Chart(ctxTrend, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'Overall',
+                            data: filteredData.map(d => d.overall),
+                            borderColor: '#10b981', // Emerald
+                            backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                            borderWidth: 2,
+                            fill: true,
+                            tension: 0.3
+                        },
+                        {
+                            label: 'Net Profit',
+                            data: filteredData.map(d => d.net),
+                            borderColor: '#3b82f6', // Blue
+                            backgroundColor: 'transparent',
+                            borderWidth: 2,
+                            borderDash: [5, 5],
+                            tension: 0.3
+                        },
+                        {
+                            label: 'Ad Spent',
+                            data: filteredData.map(d => d.adSpent),
+                            borderColor: '#ef4444', // Red
+                            backgroundColor: 'transparent',
+                            borderWidth: 2,
+                            tension: 0.3
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'bottom' },
+                        tooltip: { mode: 'index', intersect: false }
+                    },
+                    scales: {
+                        y: { beginAtZero: true, ticks: { callback: (val) => 'RM' + val } }
+                    },
+                    interaction: { mode: 'nearest', axis: 'x', intersect: false }
+                }
+            });
+
+            // 2. ROAS Chart
+            const ctxRoas = document.getElementById('roasChart').getContext('2d');
+            if (roasChartInstance) roasChartInstance.destroy();
+            roasChartInstance = new Chart(ctxRoas, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'ROAS',
+                        data: filteredData.map(d => d.roas),
+                        backgroundColor: filteredData.map(d => d.roas >= 2.5 ? '#8b5cf6' : '#c4b5fd'), // Purple variations
+                        borderRadius: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: { y: { beginAtZero: true } }
+                }
+            });
+
+            // 3. Breakdown Chart (ONPAY, QR, VA)
+            const ctxBreakdown = document.getElementById('breakdownChart').getContext('2d');
+            if (breakdownChartInstance) breakdownChartInstance.destroy();
+            breakdownChartInstance = new Chart(ctxBreakdown, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'ONPAY',
+                            data: filteredData.map(d => d.onpay),
+                            backgroundColor: '#6366f1', // Indigo
+                        },
+                        {
+                            label: 'QR',
+                            data: filteredData.map(d => d.qr),
+                            backgroundColor: '#06b6d4', // Cyan
+                        },
+                        {
+                            label: 'VA',
+                            data: filteredData.map(d => d.va),
+                            backgroundColor: '#14b8a6', // Teal
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: { stacked: true },
+                        y: { stacked: true, beginAtZero: true, ticks: { callback: (val) => 'RM' + val } }
+                    },
+                    plugins: { legend: { position: 'bottom' } }
+                }
+            });
+        }
+
+        
+        function updateTable() {
+            const tbody = document.getElementById('table-body');
+            tbody.innerHTML = ''; // Clear existing
+            
+            // Loop in reverse so newest is on top
+            for(let i = filteredData.length - 1; i >= 0; i--) {
+                const row = filteredData[i];
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-gray-50 transition-colors";
+                
+                // Color codes for ROAS in table
+                let roasClass = "text-gray-900";
+                if(row.roas >= 3) roasClass = "text-green-600 font-bold";
+                else if (row.roas < 1.5) roasClass = "text-red-500 font-bold";
+
+                tr.innerHTML = `
+                    <td class="px-6 py-4 whitespace-nowrap font-medium text-gray-900">${row.originalDateStr}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-right text-red-600">${formatCurrency(row.adSpent)}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-right">${formatCurrency(row.onpay)}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-right">${formatCurrency(row.qr)}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-right">${formatCurrency(row.va)}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-right font-semibold text-green-700 bg-green-50/20">${formatCurrency(row.overall)}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-right font-semibold text-blue-700 bg-blue-50/20">${formatCurrency(row.net)}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-center bg-purple-50/20 ${roasClass}">${formatNumber(row.roas)}</td>
+                `;
+                tbody.appendChild(tr);
+            }
+            
+            if(filteredData.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="8" class="text-center py-8 text-gray-500">Tiada data dijumpai untuk tarikh yang dipilih.</td></tr>`;
+            }
+        }
+
+        // Filters Logic
+        const applyFilters = () => {
+            const startVal = document.getElementById('start-date').value;
+            const endVal = document.getElementById('end-date').value;
+
+            if(!startVal && !endVal) {
+                filteredData = [...globalData];
+            } else {
+                let start = startVal ? new Date(startVal) : new Date('1970-01-01');
+                let end = endVal ? new Date(endVal) : new Date('2099-12-31');
+                
+                // Set hours to cover full day
+                start.setHours(0,0,0,0);
+                end.setHours(23,59,59,999);
+
+                filteredData = globalData.filter(d => {
+                    const rowDate = d.parsedDate;
+                    return rowDate >= start && rowDate <= end;
+                });
+            }
+            
+            updateDashboard();
+        };
+
+        document.getElementById('start-date').addEventListener('change', applyFilters);
+        document.getElementById('end-date').addEventListener('change', applyFilters);
+        
+        document.getElementById('reset-filter').addEventListener('click', () => {
+            if(globalData.length > 0) {
+                document.getElementById('start-date').value = globalData[0].isoDate;
+                document.getElementById('end-date').value = globalData[globalData.length-1].isoDate;
+            } else {
+                document.getElementById('start-date').value = '';
+                document.getElementById('end-date').value = '';
+            }
+            filteredData = [...globalData];
+            updateDashboard();
+        });
+
+        // Initialize App
+        window.onload = initializeData;
+
+    </script>
+</body>
+</html>
